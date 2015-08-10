@@ -4,7 +4,6 @@ package applicative
 import monads.Functor
 import state._
 import State._
-import StateUtil._ // defined at bottom of this file
 import monoids._
 
 trait Applicative[F[_]] extends Functor[F] {
@@ -144,16 +143,4 @@ object Traverse {
   val optionTraverse = ???
 
   val treeTraverse = ???
-}
-
-// The `get` and `set` functions on `State` are used above,
-// but aren't in the `exercises` subproject, so we include
-// them here
-object StateUtil {
-
-  def get[S]: State[S, S] =
-    State(s => (s, s))
-
-  def set[S](s: S): State[S, Unit] =
-    State(_ => ((), s))
 }
