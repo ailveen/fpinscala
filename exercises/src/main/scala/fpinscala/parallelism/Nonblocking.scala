@@ -1,11 +1,13 @@
 package fpinscala.parallelism
 
-import java.util.concurrent.{Callable, CountDownLatch, ExecutorService}
+import java.util.concurrent.{Executors, Callable, CountDownLatch, ExecutorService}
 import java.util.concurrent.atomic.AtomicReference
+
+import fpinscala.parallelism.Nonblocking.Par._
 
 object Nonblocking {
 
-  trait Future[+A] {
+  sealed trait Future[+A] {
     private[parallelism] def apply(k: A => Unit): Unit
   }
 
@@ -105,6 +107,12 @@ object Nonblocking {
     def sequence[A](as: List[Par[A]]): Par[List[A]] =
       map(sequenceBalanced(as.toIndexedSeq))(_.toList)
 
+    def parMap[A,B](as: List[A])(f: A => B): Par[List[B]] =
+      sequence(as.map(asyncF(f)))
+
+    def parMap[A,B](as: IndexedSeq[A])(f: A => B): Par[IndexedSeq[B]] =
+      sequenceBalanced(as.map(asyncF(f)))
+
     // exercise answers
 
     /*
@@ -152,7 +160,10 @@ object Nonblocking {
       ???
 
     def join[A](p: Par[Par[A]]): Par[A] =
-      ???
+      es => new Future[A] {
+        def apply(cb: A => Unit): Unit =
+          p(es)(p2 => eval(es) { p2(es)(cb) })
+      }
 
     def joinViaFlatMap[A](a: Par[Par[A]]): Par[A] =
       ???
@@ -170,4 +181,14 @@ object Nonblocking {
       def zip[B](b: Par[B]): Par[(A,B)] = p.map2(b)((_,_))
     }
   }
+}
+
+object NonblockingExamples extends App {
+  import Nonblocking._
+
+  val es = Executors.newFixedThreadPool(8)
+  val x: Par[Int] = (es) => new Future[Int] {
+    def apply(k: (Int) => Unit): Unit = k(1 + 2)
+  }
+  Console println run(es)(x)
 }
