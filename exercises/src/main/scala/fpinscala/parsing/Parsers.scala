@@ -9,52 +9,55 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
 
   def run[A](p: Parser[A])(input: String): Either[ParseError,A]
 
-  def char(c: Char): Parser[Char] =
-    string(c toString) map (_ charAt 0)
-
   implicit def string(s: String): Parser[String]
-
-  implicit def regex(r: Regex): Parser[String]
-
+  implicit def operators[A](p: Parser[A]): ParserOps[A] = ParserOps[A](p)
   implicit def asStringParser[A](a: A)(implicit f: A => Parser[String]): ParserOps[String] = ParserOps(f(a))
 
-  def or[A](s1: Parser[A], s2: => Parser[A]): Parser[A]
+  def char(c: Char): Parser[Char] =
+    string(c toString) map (_ charAt 0)
+  /*
+   * A default `succeed` implementation in terms of `string` and `map`.
+   * We leave `succeed` abstract, since `map` is defined below in terms of
+   * `flatMap` and `succeed`, which would be a circular definition! But we include
+   * the definition here in case implementations wish to use it
+   * (say if they provide a custom implementation of `map`, breaking the cycle)
+   */
+  def defaultSucceed[A](a: A): Parser[A] =
+    string("") map (_ => a)
+
+  def succeed[A](a: A): Parser[A]
+
+  def slice[A](p: Parser[A]): Parser[String]
+
+  def many1[A](p: Parser[A]): Parser[List[A]] =
+    map2(p, many(p))(_ :: _)
 
   def listOfN[A](n: Int, p: Parser[A]): Parser[List[A]] =
     if (n <= 0) succeed(List())
     else map2(p, listOfN(n-1, p))(_ :: _)
 
-  def many[A](p: Parser[A]): Parser[List[A]] = p.map2(many(p))(_ :: _) | succeed(List.empty[A])
+  def many[A](p: Parser[A]): Parser[List[A]] =
+    map2(p, many(p))(_ :: _) or succeed(List())
 
-  def map[A, B](p: Parser[A])(f: A => B): Parser[B] = p flatMap(a => succeed(f(a)))
+  def or[A](p1: Parser[A], p2: => Parser[A]): Parser[A]
 
-  implicit def operators[A](p: Parser[A]): ParserOps[A] = ParserOps[A](p)
+  def flatMap[A,B](p: Parser[A])(f: A => Parser[B]): Parser[B]
 
-  def succeed[A](a: A): Parser[A] =
-    string("") map (_ => a)
-
-  def slice[A](p: Parser[A]): Parser[String]
-
-  def many1[A](p: Parser[A]): Parser[List[A]] = p.map2(p.many)(_ :: _)
+  implicit def regex(r: Regex): Parser[String]
 
   def product[A,B](p: Parser[A], p2: => Parser[B]): Parser[(A,B)] = for {
     a <- p
     b <- p2
   } yield a -> b
 
-  def map2Old[A,B,C](p: Parser[A], p2: => Parser[B])(f: (A,B) => C): Parser[C] =
-    p ** p2 map f.tupled
-
-  def map2[A,B,C](p: Parser[A], p2: => Parser[B])(f: (A,B) => C): Parser[C] =
+  def map2[A, B, C](p: Parser[A], p2: => Parser[B])(f: (A, B) => C): Parser[C] =
     for {
       a <- p
       b <- p2
     } yield f(a, b)
 
-  def unbiasL[A,B,C](p: ((A,B), C)): (A,B,C) = (p._1._1, p._1._2, p._2)
-  def unbiasR[A,B,C](p: (A, (B,C))): (A,B,C) = (p._1, p._2._1, p._2._2)
-
-  def flatMap[A,B](p: Parser[A])(f: A => Parser[B]): Parser[B]
+  def map[A,B](a: Parser[A])(f: A => B): Parser[B] =
+    flatMap(a)(f andThen succeed)
 
   def label[A](msg: String)(p: Parser[A]): Parser[A]
 
@@ -62,8 +65,11 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
 
   def attempt[A](p: Parser[A]): Parser[A]
 
-  def defaultSucceed[A](a: A): Parser[A] =
-    string("") map (_ => a)
+  def map2Old[A,B,C](p: Parser[A], p2: => Parser[B])(f: (A,B) => C): Parser[C] =
+    p ** p2 map f.tupled
+
+  def unbiasL[A,B,C](p: ((A,B), C)): (A,B,C) = (p._1._1, p._1._2, p._2)
+  def unbiasR[A,B,C](p: (A, (B,C))): (A,B,C) = (p._1, p._2._1, p._2._2)
 
   /** Sequences two parsers, ignoring the result of the first.
     * We wrap the ignored half in slice, since we don't care about its result. */
@@ -135,14 +141,19 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
     p <* eof
 
   case class ParserOps[A](p: Parser[A]) {
-    def or[B >: A](p2: => Parser[A]): Parser[A] = self or (p, p2)
-    def |[B >: A](p2: => Parser[A]): Parser[A] = p or p2
+    def |[B>:A](p2: => Parser[B]): Parser[B] = self.or(p,p2) // use `self` to explicitly disambiguate reference to the `or` method on the `trait`
+    def or[B>:A](p2: => Parser[B]): Parser[B] = p | p2
+
     def map[B](f: A => B): Parser[B] = self.map(p)(f)
-    def many: Parser[List[A]] = many p
-    def many1: Parser[List[A]] = many1 p
+    def many = self.many(p)
+
     def slice: Parser[String] = self slice p
-    def product[B](p2: => Parser[B]): Parser[(A,B)] = self product (p, p2)
-    def **[B](p2: => Parser[B]): Parser[(A,B)] = p product p2
+
+    def **[B](p2: => Parser[B]): Parser[(A,B)] =
+      self product (p, p2)
+    def product[B](p2: => Parser[B]): Parser[(A,B)] =
+      p ** p2
+    def many1: Parser[List[A]] = many1 p
     def map2[B,C](p2: => Parser[B])(f: (A,B) => C): Parser[C] = self.map2(p, p2)(f)
     def flatMap[B](f: A => Parser[B]): Parser[B] = self.flatMap(p)(f)
     def label(msg: String): Parser[A] = self.label(msg)(p)

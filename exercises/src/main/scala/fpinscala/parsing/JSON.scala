@@ -32,4 +32,3 @@ object JSON {
     root(whitespace *> (obj | array))
   }
 }
-
