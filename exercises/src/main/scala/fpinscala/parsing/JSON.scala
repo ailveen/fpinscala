@@ -11,24 +11,23 @@ object JSON {
   case class JObject(get: Map[String, JSON]) extends JSON
 
   def jsonParser[Parser[+_]](P: Parsers[Parser]): Parser[JSON] = {
-    // we'll hide the string implicit conversion and promote strings to tokens instead
-    // this is a bit nicer than having to write token everywhere
-    import P.{string => _, _}
-    implicit def tok(s: String) = token(P.string(s))
+    import P._
+    implicit def tok(s: Parser[String]): Parser[String] = token(s)
 
+    def value: Parser[JSON] = lit | obj | array
+    def keyval: Parser[(String, JSON)] = escapedQuoted ** (":" *> value)
     def array = surround("[","]")(
       value sep "," map (vs => JArray(vs.toIndexedSeq))) scope "array"
     def obj = surround("{","}")(
       keyval sep "," map (kvs => JObject(kvs.toMap))) scope "object"
-    def keyval = escapedQuoted ** (":" *> value)
     def lit = scope("literal") {
       "null".as(JNull) |
-        double.map(JNumber(_)) |
-        escapedQuoted.map(JString(_)) |
+        double.map(JNumber) |
+        escapedQuoted.map(JString) |
         "true".as(JBool(true)) |
         "false".as(JBool(false))
     }
-    def value: Parser[JSON] = lit | obj | array
+
     root(whitespace *> (obj | array))
   }
 }

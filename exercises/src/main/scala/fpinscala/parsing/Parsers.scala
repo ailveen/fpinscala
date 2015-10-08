@@ -91,7 +91,7 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
   def digits: Parser[String] = "\\d+".r
 
   /** Parser which consumes reluctantly until it encounters the given string. */
-  def thru(s: String): Parser[String] = (".*?"+Pattern.quote(s)).r
+  def thru(s: String): Parser[String] = (".*?" + Pattern.quote(s)).r
 
   /** Unescaped string literals, like "foo" or "bar". */
   def quoted: Parser[String] = string("\"") *> thru("\"").map(_.dropRight(1))
@@ -129,7 +129,7 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
     map2(p, many(op ** p))((h,t) => t.foldLeft(h)((a,b) => b._1(a,b._2)))
 
   /** Wraps `p` in start/stop delimiters. */
-  def surround[A](start: Parser[Any], stop: Parser[Any])(p: => Parser[A]) =
+  def surround[A](start: Parser[Any], stop: Parser[Any])(p: => Parser[A]): Parser[A] =
     start *> p <* stop
 
   /** A parser that succeeds when given empty input. */
@@ -210,8 +210,8 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
 
 case class Location(input: String, offset: Int = 0) {
 
-  lazy val line = input.slice(0,offset+1).count(_ == '\n') + 1
-  lazy val col = input.slice(0,offset+1).reverse.indexOf('\n')
+  lazy val line = input.slice(0, offset+1).count(_ == '\n') + 1
+  lazy val col = input.slice(0, offset+1).reverse.indexOf('\n')
 
   def toError(msg: String): ParseError =
     ParseError(List((this, msg)))
