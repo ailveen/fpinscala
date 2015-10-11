@@ -231,6 +231,14 @@ object Gen {
 
   def listOf1[A](g: Gen[A]): SGen[List[A]] =
     SGen(n => g.listOfN(n max 1))
+
+  /* Not the most efficient implementation, but it's simple.
+   * This generates ASCII strings.
+   */
+  def stringN(n: Int): Gen[String] =
+    listOfN(n, choose(0,127)).map(_.map(_.toChar).mkString)
+
+  val string: SGen[String] = SGen(stringN)
 }
 
 //trait Gen[A] {

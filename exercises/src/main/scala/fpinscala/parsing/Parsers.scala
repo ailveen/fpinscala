@@ -10,6 +10,7 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
   def run[A](p: Parser[A])(input: String): Either[ParseError,A]
 
   implicit def string(s: String): Parser[String]
+
   implicit def operators[A](p: Parser[A]): ParserOps[A] = ParserOps[A](p)
   implicit def asStringParser[A](a: A)(implicit f: A => Parser[String]): ParserOps[String] = ParserOps(f(a))
 
@@ -210,8 +211,14 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
 
 case class Location(input: String, offset: Int = 0) {
 
-  lazy val line = input.slice(0, offset+1).count(_ == '\n') + 1
-  lazy val col = input.slice(0, offset+1).reverse.indexOf('\n')
+  lazy val line = input.slice(0, offset + 1).count(_ == '\n') + 1
+  lazy val col = input.slice(0, offset + 1).reverse.indexOf('\n') match {
+    case -1 => offset + 1
+    case lineStart => offset - lineStart
+  }
+
+  def errorLocation(e: ParseError): Location = ???
+  def errorMessage(e: ParseError): String = ???
 
   def toError(msg: String): ParseError =
     ParseError(List((this, msg)))
@@ -224,6 +231,18 @@ case class Location(input: String, offset: Int = 0) {
     else ""
 }
 
-case class ParseError(stack: List[(Location,String)] = List(),
-                      otherFailures: List[ParseError] = List()) {
+case class ParseError(stack: List[(Location,String)] = List.empty,
+                      otherFailures: List[ParseError] = List.empty) {
+
+  def push(loc: Location, msg: String): ParseError =
+    copy(stack = (loc,msg) :: stack)
+
+  def label[A](s: String): ParseError =
+    ParseError(latestLoc.map((_,s)).toList)
+
+  def latestLoc: Option[Location] =
+    latest map (_._1)
+
+  def latest: Option[(Location,String)] =
+    stack.lastOption
 }
