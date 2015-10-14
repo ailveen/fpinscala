@@ -217,9 +217,6 @@ case class Location(input: String, offset: Int = 0) {
     case lineStart => offset - lineStart
   }
 
-  def errorLocation(e: ParseError): Location = ???
-  def errorMessage(e: ParseError): String = ???
-
   def toError(msg: String): ParseError =
     ParseError(List((this, msg)))
 
@@ -229,6 +226,8 @@ case class Location(input: String, offset: Int = 0) {
   def currentLine: String = 
     if (input.length > 1) input.lines.drop(line-1).next
     else ""
+
+  def columnCaret = (" " * (col-1)) + "^"
 }
 
 case class ParseError(stack: List[(Location,String)] = List.empty,
@@ -245,4 +244,25 @@ case class ParseError(stack: List[(Location,String)] = List.empty,
 
   def latest: Option[(Location,String)] =
     stack.lastOption
+
+  override def toString =
+    if (stack.isEmpty) "no error message"
+    else {
+      val collapsed = collapseStack(stack)
+      val context =
+        collapsed.lastOption.map("\n\n" + _._1.currentLine).getOrElse("") +
+          collapsed.lastOption.map("\n" + _._1.columnCaret).getOrElse("")
+      collapsed.map { case (loc,msg) => loc.line.toString + "." + loc.col + " " + msg }.mkString("\n") +
+        context
+    }
+
+  /* Builds a collapsed version of the given error stack -
+   * messages at the same location have their messages merged,
+   * separated by semicolons */
+  def collapseStack(s: List[(Location,String)]): List[(Location,String)] =
+    s.groupBy(_._1).
+      mapValues(_.map(_._2).mkString("; ")).
+      toList.sortBy(_._1.offset)
+
+  def formatLoc(l: Location): String = l.line + "." + l.col
 }
