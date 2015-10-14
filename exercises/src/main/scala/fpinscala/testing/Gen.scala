@@ -103,9 +103,11 @@ object Prop {
   }
 
   def run(p: Prop,
+          label: String = "",
           maxSize: Int = 100,
           testCases: Int = 100,
-          rng: RNG = RNG.Simple(System.currentTimeMillis)): Unit =
+          rng: RNG = RNG.Simple(System.currentTimeMillis)): Unit = {
+    Option(label).foreach(l => Console println s"Running $l...")
     p.run(maxSize, testCases, rng) match {
       case Falsified(msg, n) =>
         Console println s"! Falsified after $n passed tests:\n $msg"
@@ -114,6 +116,8 @@ object Prop {
       case Proved =>
         println(s"+ OK, proved property.")
     }
+  }
+
 
   val ES: ExecutorService = Executors.newCachedThreadPool
 

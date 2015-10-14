@@ -20,28 +20,53 @@ object Monoid {
     val zero = Nil
   }
 
-  val intAddition: Monoid[Int] = sys.error("todo")
+  val intAddition: Monoid[Int] = new Monoid[Int] {
+    override def op(a1: Int, a2: Int): Int = a1 + a2
 
-  val intMultiplication: Monoid[Int] = sys.error("todo")
+    override def zero: Int = 0
+  }
 
-  val booleanOr: Monoid[Boolean] = sys.error("todo")
 
-  val booleanAnd: Monoid[Boolean] = sys.error("todo")
+  val intMultiplication: Monoid[Int] = new Monoid[Int] {
+    override def op(a1: Int, a2: Int): Int = a1 * a2
 
-  def optionMonoid[A]: Monoid[Option[A]] = sys.error("todo")
+    override def zero: Int = 1
+  }
 
-  def endoMonoid[A]: Monoid[A => A] = sys.error("todo")
+  val booleanOr: Monoid[Boolean] = new Monoid[Boolean] {
+    override def op(a1: Boolean, a2: Boolean): Boolean = a1 || a2
 
-  // TODO: Placeholder for `Prop`. Remove once you have implemented the `Prop`
-  // data type from Part 2.
-  trait Prop {}
+    override def zero: Boolean = false
+  }
 
-  // TODO: Placeholder for `Gen`. Remove once you have implemented the `Gen`
-  // data type from Part 2.
+  val booleanAnd: Monoid[Boolean] = new Monoid[Boolean] {
+    override def op(a1: Boolean, a2: Boolean): Boolean = a1 && a2
+
+    override def zero: Boolean = true
+  }
+
+  def optionMonoid[A]: Monoid[Option[A]] = new Monoid[Option[A]] {
+    override def op(a1: Option[A], a2: Option[A]): Option[A] =
+      a1.orElse(a2)
+
+    override def zero: Option[A] = None
+  }
+
+  def endoMonoid[A]: Monoid[A => A] = new Monoid[A => A] {
+    override def op(a1: A => A, a2: A => A): A => A = a1 andThen a2
+
+    override def zero: A => A = a => a
+  }
 
   import fpinscala.testing._
   import Prop._
-  def monoidLaws[A](m: Monoid[A], gen: Gen[A]): Prop = sys.error("todo")
+  def monoidLaws[A](gen: Gen[A])(m: Monoid[A]): Prop =
+    forAll(for (x <- gen; y <- gen; z <- gen) yield (x, y, z)) {
+      case (xx, yy, zz) =>
+        m.op(xx, m.op(yy, zz)) == m.op(m.op(xx, yy), zz)
+    } && forAll(gen) { a =>
+        m.op(a, m.zero) == a && m.op(m.zero, a) == a
+    }
 
   def trimMonoid(s: String): Monoid[String] = sys.error("todo")
 
@@ -73,7 +98,7 @@ object Monoid {
   def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] = 
     sys.error("todo") 
 
-  val wcMonoid: Monoid[WC] = sys.error("todo")
+//  val wcMonoid: Monoid[WC] = sys.error("todo")
 
   def count(s: String): Int = sys.error("todo")
 
