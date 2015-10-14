@@ -18,7 +18,7 @@ object Types {
     def slice(n: Int) = loc.input.substring(loc.offset, loc.offset + n)
   }
 
-  trait Result[+A] {
+  sealed trait Result[+A] {
 
     def extract: Either[ParseError,A] = this match {
       case Failure(e,_) => Left(e)
@@ -41,7 +41,7 @@ object Types {
     }
 
     def advanceSuccess(n: Int): Result[A] = this match {
-      case Success(a,m) => Success(a,n+m)
+      case Success(a,m) => Success(a, n + m)
       case _ => this
     }
   }
@@ -133,7 +133,6 @@ object MyParsers extends Parsers[Parser] {
  */
   override def many[A](p: Parser[A]): Parser[List[A]] =
     s => {
-      var nConsumed: Int = 0
       val buf = new collection.mutable.ListBuffer[A]
       def go(p: Parser[A], offset: Int): Result[List[A]] = {
         p(s.advanceBy(offset)) match {

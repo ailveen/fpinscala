@@ -212,7 +212,7 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
 case class Location(input: String, offset: Int = 0) {
 
   lazy val line = input.slice(0, offset + 1).count(_ == '\n') + 1
-  lazy val col = input.slice(0, offset + 1).reverse.indexOf('\n') match {
+  lazy val col = input.slice(0, offset + 1).lastIndexOf('\n') match {
     case -1 => offset + 1
     case lineStart => offset - lineStart
   }
@@ -224,7 +224,7 @@ case class Location(input: String, offset: Int = 0) {
 
   /* Returns the line corresponding to this location */
   def currentLine: String = 
-    if (input.length > 1) input.lines.drop(line-1).next
+    if (input.length > 1) input.lines.drop(line - 1).next
     else ""
 
   def columnCaret = (" " * (col-1)) + "^"
