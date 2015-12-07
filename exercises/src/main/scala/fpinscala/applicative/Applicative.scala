@@ -8,7 +8,7 @@ import fpinscala.state._
 
 trait Applicative[F[_]] extends Functor[F] {
 
-  def map2[A,B,C](fa: F[A], fb: F[B])(f: (A, B) => C): F[C] = apply(apply(unit(f.curried))(fa))(fb)
+  def map2[A,B,C](fa: F[A], fb: F[B])(f: (A, B) => C): F[C] = apply(map(fa)(f.curried))(fb)
 
   def apply[A,B](fab: F[A => B])(fa: F[A]): F[B] = map2(fab, fa)((ab, a) => ab(a))
 
@@ -85,6 +85,12 @@ trait Monad[F[_]] extends Applicative[F] {
 
   override def apply[A,B](mf: F[A => B])(ma: F[A]): F[B] =
     flatMap(mf)(f => map(ma)(a => f(a)))
+
+  override def map[A,B](m: F[A])(f: A => B): F[B] =
+    flatMap(m)(a => unit(f(a)))
+
+  override def map2[A,B,C](ma: F[A], mb: F[B])(f: (A, B) => C): F[C] =
+    flatMap(ma)(a => map(mb)(b => f(a, b)))
 }
 
 object Monad {
@@ -154,13 +160,19 @@ object Applicative {
       }
   }
 
+  // B is a throw-away type
   type Const[A, B] = A
 
-  implicit def monoidApplicative[M](M: Monoid[M]) =
+  implicit def monoidApplicative[M](m: Monoid[M]): Applicative[({ type f[x] = Const[M, x] })#f] =
     new Applicative[({ type f[x] = Const[M, x] })#f] {
-      def unit[A](a: => A): M = M.zero
-      override def apply[A,B](m1: M)(m2: M): M = M.op(m1, m2)
+      def unit[A](a: => A): M = m.zero
+      override def apply[A,B](m1: M)(m2: M): M = m.op(m1, m2)
     }
+
+
+  def monoid2Applicative: Applicative[Monoid] = new Applicative[Monoid] {
+    override def unit[A](a: => A): Monoid[A] = ???
+  }
 }
 
 trait Traverse[F[_]] extends Functor[F] with Foldable[F] {
@@ -200,9 +212,9 @@ trait Traverse[F[_]] extends Functor[F] with Foldable[F] {
   def zipWithIndex[A](fa: F[A]): F[(A, Int)] =
     mapAccum(fa, 0)((a, s) => ((a, s), s + 1))._1
 
-  def reverse[A](fa: F[A]): F[A] = sys.error("todo")
+  def reverse[A](fa: F[A]): F[A] = mapAccum(fa, toList(fa).reverse)((_, as) => (as.head, as.tail))._1
 
-  override def foldLeft[A,B](fa: F[A])(z: B)(f: (B, A) => B): B = sys.error("todo")
+  override def foldLeft[A,B](fa: F[A])(z: B)(f: (B, A) => B): B = mapAccum(fa, z)((a, b) => 1 -> f(b, a))._2
 
   def fuse[G[_],H[_],A,B](fa: F[A])(f: A => G[B], g: A => H[B])
                          (implicit G: Applicative[G], H: Applicative[H]): (G[F[B]], H[F[B]]) = sys.error("todo")
@@ -236,9 +248,11 @@ object TraversalPlayground extends App {
   val l1 = List(Some(1), None, Some(2))
   val l2 = List(Some(1), Some(2), Some(3))
 
-  val res = Traverse.listTraverse.traverse[Option, Option[Int], Int](l1)(i => i map (_ + 1))(Applicative.optionApplicative)
+  implicit val optionApplicative: Applicative[Option] = Applicative.optionApplicative
+
+  val res = Traverse.listTraverse.traverse[Option, Option[Int], Int](l1)(i => i map (_ + 1))
   Console println res
 
-  val res2 = Traverse.listTraverse.traverse[Option, Option[Int], Int](l2)(i => i map (_ + 1))(Applicative.optionApplicative)
+  val res2 = Traverse.listTraverse.traverse[Option, Option[Int], Int](l2)(i => i map (_ + 1))
   Console println res2
 }
