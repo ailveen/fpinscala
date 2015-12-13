@@ -109,8 +109,15 @@ object Monad {
       st flatMap f
   }
 
-  def composeM[F[_],N[_]](implicit F: Monad[F], N: Monad[N], T: Traverse[N]):
-    Monad[({type f[x] = F[N[x]]})#f] = sys.error("todo")
+  def composeM[F[_],N[_]](implicit F: Monad[F], N: Monad[N], T: Traverse[N]): Monad[({type f[x] = F[N[x]]})#f] = {
+    var self = this
+    new Monad[({type f[x] = F[N[x]]})#f] {
+      override def unit[A](a: => A): F[N[A]] = F.unit(N.unit(a))
+
+      override def flatMap[A, B](ma: F[N[A]])(f: (A) => F[N[B]]): F[N[B]] =
+        F.flatMap(ma)((na: N[A]) => F.map(T.traverse(na)(f))(nnb => N.join(nnb)))
+    }
+  }
 
   val optionMonad = new Monad[Option] {
     def unit[A](a: => A) = Some(a)
@@ -214,12 +221,21 @@ trait Traverse[F[_]] extends Functor[F] with Foldable[F] {
 
   def reverse[A](fa: F[A]): F[A] = mapAccum(fa, toList(fa).reverse)((_, as) => (as.head, as.tail))._1
 
-  override def foldLeft[A,B](fa: F[A])(z: B)(f: (B, A) => B): B = mapAccum(fa, z)((a, b) => 1 -> f(b, a))._2
+  override def foldLeft[A,B](fa: F[A])(z: B)(f: (B, A) => B): B = mapAccum(fa, z)((a, b) => () -> f(b, a))._2
 
   def fuse[G[_],H[_],A,B](fa: F[A])(f: A => G[B], g: A => H[B])
-                         (implicit G: Applicative[G], H: Applicative[H]): (G[F[B]], H[F[B]]) = sys.error("todo")
+                         (implicit G: Applicative[G], H: Applicative[H]): (G[F[B]], H[F[B]]) =
+    traverse[({type f[x] = (G[x], H[x])})#f, A, B](fa)(a => f(a) -> g(a))(G _product H)
 
-  def compose[G[_]](implicit G: Traverse[G]): Traverse[({type f[x] = F[G[x]]})#f] = sys.error("todo")
+//  def traverse[G[_]:Applicative,A,B](fa: F[A])(f: A => G[B]): G[F[B]] =
+
+  def compose[G[_]](implicit G: Traverse[G]): Traverse[({type f[x] = F[G[x]]})#f] = {
+    val self = this
+    new Traverse[({type f[x] = F[G[x]]})#f] {
+      override def traverse[M[_] : Applicative, A, B](fa: F[G[A]])(f: A => M[B]): M[F[G[B]]] =
+        self.traverse(fa)((ga: G[A]) => G.traverse(ga)(f))
+    }
+  }
 }
 
 object Traverse {
