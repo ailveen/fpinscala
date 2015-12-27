@@ -17,7 +17,7 @@ def unit[A](a: => A): TailRec[A] = Return(a)
     Suspend(() => ()).flatMap { _ => a }
 }
 
-object IOI {
+object TailRecInterpreter {
   @annotation.tailrec
   def run[A](io: TailRec[A]): A = io match {
     case Return(a) => a

@@ -7,5 +7,5 @@ object IOPlayground extends App {
 
   val p = TailRec.forever(printLine("Still going..."))
 
-  IOI run p
+  TailRecInterpreter run p
 }
