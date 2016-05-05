@@ -85,7 +85,7 @@ object Monoid {
     foldMap(as, dual(endoMonoid[B]))(a => b => f(b, a))(z)
 
   def foldMapV[A, B](as: IndexedSeq[A], m: Monoid[B])(f: A => B): B =
-    if (as isEmpty) {
+    if (as.isEmpty) {
       m.identity
     } else if (as.length == 1) {
       f(as.head)
@@ -174,7 +174,11 @@ object Monoid {
     }
 
   def functionMonoid[A,B](B: Monoid[B]): Monoid[A => B] =
-    sys.error("todo")
+    new Monoid[A => B] {
+      def identity: A => B = a => B.identity
+
+      def op(a1: A => B, a2: A => B): A => B = a => B.op(a1(a), a2(a))
+    }
 
   def mapMergeMonoid[K,V](V: Monoid[V]): Monoid[Map[K, V]] =
     new Monoid[Map[K, V]] {
@@ -186,8 +190,10 @@ object Monoid {
         }
     }
 
-  def bag[A](as: IndexedSeq[A]): Map[A, Int] =
-    sys.error("todo")
+  def bag[A](as: IndexedSeq[A]): Map[A, Int] = {
+    val m = mapMergeMonoid[A, Int](intAddition)
+    IndexedSeqFoldable.foldMap(as)(a => Map(a -> 1))(m)
+  }
 }
 
 trait Foldable[F[_]] {
