@@ -6,6 +6,7 @@ import fpinscala.parallelism.Nonblocking.Par.toParOps // infix syntax for `Par.m
 trait Monoid[A] {
   def op(a1: A, a2: A): A
   def identity: A
+  def zero: A = identity
 }
 
 object Monoid {
